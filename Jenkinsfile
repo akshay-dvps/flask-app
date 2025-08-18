@@ -20,11 +20,15 @@ pipeline {
     stage('Lint') {
       steps {
         sh '''
-          # install flake8 into user environment (safe)
-          python3 -m pip install --user flake8 || true
-          export PATH=$HOME/.local/bin:$PATH
-          flake8 --version || true
-          flake8 app.py || true
+          # Create isolated virtual environment
+          python3 -m venv venv
+          . venv/bin/activate
+
+          pip install --upgrade pip
+          pip install flake8
+
+          flake8 --version
+          flake8 app.py
         '''
       }
     }
@@ -45,7 +49,6 @@ pipeline {
           sh '''
             export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-            aws --version || true
 
             # ECR login
             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${IMAGE_REGISTRY}
@@ -64,32 +67,28 @@ pipeline {
     stage('Basic Container Test') {
       steps {
         sh '''
-          # run the newly built image on the agent and test /health (use ephemeral port)
           TEST_PORT=5002
-          docker run -d --name jenkins_test_flask -p ${TEST_PORT}:5000 ${IMAGE}:${IMAGE_TAG} || true
+          docker run -d --name jenkins_test_flask -p ${TEST_PORT}:5000 ${IMAGE}:${IMAGE_TAG}
           sleep 4
           curl -f http://localhost:${TEST_PORT}/health
-          docker rm -f jenkins_test_flask || true
+          docker rm -f jenkins_test_flask
         '''
       }
     }
 
     stage('Deploy to EKS') {
       steps {
-        // if you prefer a manual approval, replace this block with the Input step shown below
         withCredentials([file(credentialsId: 'eks-kubeconfig', variable: 'KUBECONFIG_FILE')]) {
           sh '''
             export KUBECONFIG=${KUBECONFIG_FILE}
-            # Update deployment image using kubectl set image (preferred):
             kubectl -n ${K8S_NAMESPACE} set image deployment/flask-app flask-app=${IMAGE}:${IMAGE_TAG} --record || \
-              # fallback to apply the manifest if set image fails
               sed "s|IMAGE_PLACEHOLDER|${IMAGE}:${IMAGE_TAG}|g" k8s/deployment.yaml | kubectl -n ${K8S_NAMESPACE} apply -f -
             kubectl -n ${K8S_NAMESPACE} rollout status deployment/flask-app --timeout=120s
           '''
         }
       }
     }
-  } // stages
+  }
 
   post {
     success {
@@ -100,3 +99,4 @@ pipeline {
     }
   }
 }
+
