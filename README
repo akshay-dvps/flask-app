@@ -1,0 +1,92 @@
+1.Security & Best Practices:
+
+#.Explain how you would scan your Docker images for vulnerabilities in a CI/CD pipeline. Mention tools or processes?
+
+
+The scanning usually done through the container registry specific mechanism those are responsible for performing scanning for common vulnerabilities.
+
+eg: AWS - Image scanning  in ECR repo.
+
+    aws inspector service integrated with aws ecr in the backend  will perform the scanning (aws cli commands can be used in pipeline script)
+
+    Suggestions: configure an  "Enhanced scanning" for production container images where we can perform "scan on push image"  or "continuous scan" method.
+
+
+eg2: Azure- Enabling ACR registry in Microsoft Defender for Cloud 
+
+     Need to enable container registries under the defender plans in Microsoft Defender for Cloud
+     so it will turn on scanning images in the corresponding  registries  (azure cli command can be used in pipeline script)
+
+ 
+TRIVY: we can use trivy for scanning the images before getting deployed. If there were any Critical vulnerabilities found then we can apply the logic to stop the pipeline with scanning results.
+
+
+
+#.Beyond Kubernetes Secrets, discuss other common methods for managing sensitive information (API keys, database credentials) in a production DevOps environment.
+
+
+Beyond Kubernetes Secrets, we can use  secret management solutions like AWS Secrets Manager, Azure key vault, HashiCorp Vault etc. These allow secure storage, automatic rotation, and restricted access control.
+
+Also we can use the secrets in cicd configuration such as credentials in Jenkins , reposirory variables in Bitbucket pipeline  and variable group in azure  pipeline 
+
+We can also  considering setting up env variables.
+
+
+#.Briefly explain two different Kubernetes deployment strategies (e.g., Rolling Update, Blue/Green, Canary) and when you would use each?
+
+Rolling Update:
+
+This is a commonly used deployment approach by Gradually replacing old pods with new ones in small batches(not instant) until the deployment is fully updated.
+the old version of pods didn't get removed instantly when the deployment triggered
+Kubernetes ensures some pods of the old version  will parallelly running while new ones come up so that the downtime  will be minute.
+
+Usage:  can be used for regular application updates . For eg, upgrading the app with minor changes where continuous availability is required.
+        Also can be used for the version updates of dependency packages.
+
+
+Blue/Green Deployment:
+
+This is a deployment method Runs two environments in parallel – Blue (current version) and Green (new version). Once the new version is verified, traffic is switched from Blue to Green.
+This method ensures zero down time during the deployment
+Also B/G deployment is a costly approach since we need to run 2 environment
+
+Usage: Can be used for major release/critical changes where we may need an  instant rollback by directing traffic back to the old version if any issues Happened. For eg, database/framewok version upgrade.
+
+
+
+
+2. Monitoring & Observability
+
+
+#.Describe how you would collect basic application metrics (e.g., request count, latency) from your Flask application. (You don't need to implement a fullu Prometheus setup, just explain the approach).
+
+Using helm we can simply deploy a kube-prometheus stack.
+specifically for flask application, we need to instrument the app for exposing a metrics path (/metrics) using "prometheus_flask_exporter".this can be done in application file(app.py)
+Also a "service monitor" manifest needs to be added in monitoring stack which will trigger the /metrics of flask application.
+Now we are goo to import dashboards (based on required metricces) in  Grafana.
+
+        For aws EKS we can enable container insight if we are not suppose to cinfigure garfana-prometheus-stack.(Grafana stack always suggested for enhanced application specific monitor))
+This can be implemented using the combination of cloudwatch agent and fluentbit(for logs)
+
+
+#. Explain your strategy for collecting and viewing logs from your Kubernetes pods.
+
+ For debugging, we can  use kubectl logs to view individual pod logs. But by considering a scalable solution we can deploy  log collectors like Fluent Bit as a, which can ecport  logs from all containers to  cloud-native service like CloudWatch, Azure Monitor,s3,kibana etc.
+
+
+
+#.Explain how you would monitor the health of your application in Kubernetes beyond just the liveness probe (e.g., external health checks, Prometheus alerts).
+
+
+The application health can be monitored and alerted by creating custom dashboards in Grafana using either  panels or custom PromQL expressions (using Prometheus as  source).
+
+AveragePodMemoryUsage → to check memory consumption in pod.
+
+container_cpu_usage_seconds_total → to measure CPU usage.
+
+http_requests_total → visibility on  incoming requests to the application.
+
+kube_node_status_condition → to monitor node health status .
+
+kube_pod_container_status_restarts_total → to detect frequent container restarts
+
